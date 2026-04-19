@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FastReader v0.3.6</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] }
+                }
+            }
+        }
+    </script>
+    <style>
+        .reader-font { font-family: 'Inter', sans-serif; }
+        
+        .bionic-bold { font-weight: 800; color: #000; transition: color 0.2s; }
+        .bionic-thin { font-weight: 400; color: #4b5563; transition: color 0.2s; }
+
+        .dark .bionic-bold { color: #ffffff; }
+        .dark .bionic-thin { color: #9ca3af; }
+
+        input[type=range] {
+            height: 6px;
+            -webkit-appearance: none;
+            background: #e5e7eb;
+            border-radius: 5px;
+            flex-grow: 1;
+        }
+        
+        .dark input[type=range] { background: #374151; }
+        
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 18px;
+            width: 18px;
+            border-radius: 50%;
+            background: #2563eb;
+            cursor: pointer;
+        }
+    </style>
+    <script>
+        // Initiale Theme-Logik vor dem Rendern
+        function initTheme() {
+            const savedTheme = localStorage.getItem('theme');
+            const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            
+            if (savedTheme === 'dark' || (!savedTheme && systemDark)) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        }
+        initTheme();
+    </script>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-4 transition-colors duration-300 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+
+    <div class="w-full max-w-2xl bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 overflow-hidden transition-colors duration-300">
+        <!-- Header -->
+        <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-gray-50/50 dark:bg-gray-800/50">
+            <div class="flex items-center gap-4">
+                <h1 class="text-xl font-bold">FastReader <span class="text-blue-600">v0.3.6</span></h1>
+                <!-- Manueller Toggle-Button -->
+                <button onclick="toggleTheme()" class="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors" title="Farbschema wechseln">
+                    <i data-lucide="sun" class="w-5 h-5 hidden dark:block"></i>
+                    <i data-lucide="moon" class="w-5 h-5 block dark:hidden"></i>
+                </button>
+            </div>
+            <div id="stats" class="text-sm text-gray-500 dark:text-gray-400 font-semibold flex flex-col items-end">
+                <span id="wordStats">0 / 0 Wörter</span>
+                <span id="timeStats" class="text-xs font-normal">Zeit: 0:00</span>
+            </div>
+        </div>
+
+        <!-- Fortschrittsbalken -->
+        <div id="progressContainer" class="w-full h-1 bg-gray-100 dark:bg-gray-700 hidden">
+            <div id="progressBar" class="h-full bg-blue-500 transition-all duration-200" style="width: 0%"></div>
+        </div>
+
+        <!-- Leseanzeige -->
+        <div id="displayArea" class="relative px-6 py-16 flex items-center justify-center min-h-[240px] bg-white dark:bg-gray-800 hidden">
+            <div id="readerDisplay" class="text-4xl md:text-6xl reader-font tracking-tight text-center leading-tight dark:text-white"></div>
+            <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div class="w-1 h-12 border-l border-r border-blue-200 dark:border-blue-800 opacity-30"></div>
+            </div>
+        </div>
+
+        <!-- Eingabebereich -->
+        <div class="p-6 bg-gray-50 dark:bg-gray-800/30 border-t border-gray-100 dark:border-gray-700">
+            <div id="inputContainer" class="mb-6 relative">
+                <div class="flex justify-between items-center mb-2">
+                    <label class="text-sm font-semibold">Textinhalt</label>
+                    <button id="pasteHint" onclick="pasteFromClipboard()" class="hidden text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium flex items-center gap-1">
+                        <i data-lucide="clipboard" class="w-3 h-3"></i> Aus Zwischenablage einfügen?
+                    </button>
+                </div>
+                <div class="relative">
+                    <textarea id="inputText" onfocus="checkEmptyFocus()" onblur="hidePasteHint()" class="w-full h-40 p-4 pr-10 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-gray-700 dark:text-gray-200 resize-none" placeholder="Füge deinen Text hier ein...">Bionic Reading ist eine neue Methode, die das Lesen erleichtert, indem sie die Fixationspunkte im Text künstlich hervorhebt. Dadurch wird das Auge durch den Text geführt und das Gehirn kann Wörter schneller erkennen. Probier es aus!</textarea>
+                    <button id="clearTextBtn" onclick="clearText()" class="absolute top-3 right-3 text-gray-400 hover:text-red-500 transition-colors p-1" title="Text löschen">
+                        <i data-lucide="x-circle" class="w-6 h-6"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex flex-col gap-6">
+                <!-- Geschwindigkeit -->
+                <div class="flex flex-col gap-3">
+                    <div class="flex justify-between items-center">
+                        <span class="text-sm font-semibold">Geschwindigkeit</span>
+                        <span class="text-sm font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-3 py-1 rounded-full"><span id="wpmDisplay">350</span> WPM</span>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <button onclick="changeSpeed(-25)" class="w-10 h-10 flex items-center justify-center bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 active:scale-95 transition-all"><i data-lucide="minus" class="w-4 h-4"></i></button>
+                        <input type="range" id="speedRange" min="100" max="1000" value="350" step="5" class="cursor-pointer">
+                        <button onclick="changeSpeed(25)" class="w-10 h-10 flex items-center justify-center bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 active:scale-95 transition-all"><i data-lucide="plus" class="w-4 h-4"></i></button>
+                    </div>
+                </div>
+
+                <!-- Steuerungs-Buttons -->
+                <div class="flex gap-3">
+                    <button id="playBtn" onclick="togglePlay()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-lg shadow-blue-200 dark:shadow-none flex items-center justify-center gap-2">
+                        <i id="playBtnIcon" data-lucide="play" class="w-5 h-5"></i>
+                        <span id="playBtnText">Start</span>
+                    </button>
+                    <button onclick="resetReader()" class="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 font-bold py-3 px-6 rounded-xl transition-all flex items-center justify-center">
+                        <i data-lucide="rotate-ccw" class="w-5 h-5"></i>
+                    </button>
+                    <button id="toggleInputBtn" onclick="toggleInputVisibility()" class="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 font-bold py-3 px-4 rounded-xl transition-all">
+                        <i data-lucide="eye" class="w-5 h-5"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Footer Info -->
+        <div class="px-6 py-3 bg-gray-100 dark:bg-gray-900/50 text-[10px] text-gray-400 flex justify-between items-center transition-colors">
+            <span>FastReader RSVP Engine</span>
+            <a href="https://de.wikipedia.org/wiki/Bionic_Reading" target="_blank" class="hover:text-blue-500 transition-colors flex items-center gap-1">
+                Über die Technik <i data-lucide="external-link" class="w-3 h-3"></i>
+            </a>
+        </div>
+    </div>
+
+    <p class="mt-6 text-gray-400 dark:text-gray-500 text-sm">Leertaste zum Starten/Stoppen</p>
+
+    <script>
+        let isPlaying = false;
+        let wordIndex = 0;
+        let words = [];
+        let timerId = null;
+        let showInput = true;
+        let sessionStartTime = null;
+        let totalElapsedMs = 0;
+
+        const readerDisplay = document.getElementById('readerDisplay');
+        const displayArea = document.getElementById('displayArea');
+        const progressContainer = document.getElementById('progressContainer');
+        const playBtnText = document.getElementById('playBtnText');
+        const playBtnIcon = document.getElementById('playBtnIcon');
+        const speedRange = document.getElementById('speedRange');
+        const wpmDisplay = document.getElementById('wpmDisplay');
+        const progressBar = document.getElementById('progressBar');
+        const wordStats = document.getElementById('wordStats');
+        const timeStats = document.getElementById('timeStats');
+        const inputContainer = document.getElementById('inputContainer');
+        const inputText = document.getElementById('inputText');
+        const clearTextBtn = document.getElementById('clearTextBtn');
+        const pasteHint = document.getElementById('pasteHint');
+
+        // Initialisierung Lucide
+        lucide.createIcons();
+
+        function toggleTheme() {
+            const isDark = document.documentElement.classList.toggle('dark');
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+            // Lucide Icons neu rendern, damit Sun/Moon korrekt getauscht werden
+            lucide.createIcons();
+        }
+
+        speedRange.addEventListener('input', () => updateWPMDisplay());
+
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' && document.activeElement !== inputText) {
+                e.preventDefault();
+                togglePlay();
+            }
+        });
+
+        function updateWPMDisplay() {
+            wpmDisplay.innerText = speedRange.value;
+            updateStats();
+            if (isPlaying) { pause(); play(); }
+        }
+
+        function changeSpeed(delta) {
+            let newVal = parseInt(speedRange.value) + delta;
+            newVal = Math.max(speedRange.min, Math.min(speedRange.max, newVal));
+            speedRange.value = newVal;
+            updateWPMDisplay();
+        }
+
+        function clearText() {
+            inputText.value = '';
+            resetReader();
+            updateStats();
+        }
+
+        function toggleClearBtn() {
+            clearTextBtn.classList.toggle('hidden', inputText.value.length === 0);
+        }
+
+        function checkEmptyFocus() {
+            if (inputText.value.length === 0) pasteHint.classList.remove('hidden');
+        }
+
+        function hidePasteHint() {
+            setTimeout(() => pasteHint.classList.add('hidden'), 250);
+        }
+
+        async function pasteFromClipboard() {
+            try {
+                const text = await navigator.clipboard.readText();
+                if (text) {
+                    inputText.value = text;
+                    updateStats();
+                    toggleClearBtn();
+                }
+            } catch (err) {
+                const fallbackText = prompt("Konnte nicht automatisch lesen. Text hier einfügen:");
+                if (fallbackText) {
+                    inputText.value = fallbackText;
+                    updateStats();
+                    toggleClearBtn();
+                }
+            }
+        }
+
+        function formatWord(word) {
+            if (!word) return "";
+            const cleanWord = word.trim();
+            const len = cleanWord.length;
+            let highLen = len === 1 ? 1 : (len <= 3 ? 1 : (len <= 5 ? 2 : Math.ceil(len * 0.4)));
+            return `<span class="bionic-bold">${cleanWord.substring(0, highLen)}</span><span class="bionic-thin">${cleanWord.substring(highLen)}</span>`;
+        }
+
+        function calculateDelay(word) {
+            const baseWpm = parseInt(speedRange.value);
+            let ms = 60000 / baseWpm;
+            if (/[.!?]/.test(word)) ms += 200;
+            else if (/[,;:]/.test(word)) ms += 100;
+            if (word.length > 8) ms += 30;
+            return ms;
+        }
+
+        function formatTime(ms) {
+            const totalSeconds = Math.floor(Math.max(0, ms) / 1000);
+            const mins = Math.floor(totalSeconds / 60);
+            const secs = totalSeconds % 60;
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        function updateStats() {
+            const text = inputText.value;
+            const currentWords = text.split(/\s+/).filter(w => w.length > 0);
+            const total = currentWords.length;
+            const wpm = parseInt(speedRange.value);
+            
+            wordStats.innerText = `${wordIndex} / ${total} Wörter`;
+            if (wordIndex < total) {
+                const estimatedMs = ((total - wordIndex) / wpm) * 60 * 1000;
+                timeStats.innerText = `Restzeit: ${formatTime(estimatedMs)}`;
+            } else {
+                timeStats.innerText = `Gesamtzeit: ${formatTime(totalElapsedMs)}`;
+            }
+            toggleClearBtn();
+        }
+
+        function play() {
+            const text = inputText.value;
+            const splitWords = text.split(/\s+/).filter(w => w.length > 0);
+            if (splitWords.length === 0) return;
+
+            if (words.length === 0 || wordIndex >= words.length) {
+                words = splitWords;
+                wordIndex = 0;
+                totalElapsedMs = 0;
+            }
+
+            isPlaying = true;
+            sessionStartTime = performance.now();
+            displayArea.classList.remove('hidden');
+            progressContainer.classList.remove('hidden');
+            
+            playBtnText.innerText = 'Pause';
+            playBtnIcon.setAttribute('data-lucide', 'pause');
+            lucide.createIcons();
+            
+            if (showInput) toggleInputVisibility();
+            nextWord();
+        }
+
+        function nextWord() {
+            if (!isPlaying) return;
+            if (wordIndex < words.length) {
+                const currentWord = words[wordIndex];
+                readerDisplay.innerHTML = formatWord(currentWord);
+                wordIndex++;
+                progressBar.style.width = `${(wordIndex / words.length) * 100}%`;
+                
+                const now = performance.now();
+                totalElapsedMs += (now - sessionStartTime);
+                sessionStartTime = now;
+                
+                updateStats();
+                timerId = setTimeout(nextWord, calculateDelay(currentWord));
+            } else { finish(); }
+        }
+
+        function pause() {
+            if (!isPlaying) return;
+            isPlaying = false;
+            clearTimeout(timerId);
+            totalElapsedMs += (performance.now() - sessionStartTime);
+            playBtnText.innerText = 'Weiter';
+            playBtnIcon.setAttribute('data-lucide', 'play');
+            lucide.createIcons();
+        }
+
+        function finish() {
+            isPlaying = false;
+            clearTimeout(timerId);
+            playBtnText.innerText = 'Start';
+            playBtnIcon.setAttribute('data-lucide', 'play');
+            lucide.createIcons();
+            
+            readerDisplay.innerHTML = `
+                <div class="flex flex-col items-center">
+                    <span class="text-green-500 font-bold mb-2">Fertig!</span>
+                    <span class="text-lg font-medium">${words.length} Wörter gelesen</span>
+                    <span class="text-sm text-gray-500">Zeit: ${formatTime(totalElapsedMs)}</span>
+                </div>
+            `;
+            updateStats();
+        }
+
+        function togglePlay() { isPlaying ? pause() : play(); }
+
+        function resetReader() {
+            pause();
+            wordIndex = 0;
+            words = [];
+            totalElapsedMs = 0;
+            progressBar.style.width = '0%';
+            updateStats();
+            displayArea.classList.add('hidden');
+            progressContainer.classList.add('hidden');
+            readerDisplay.innerHTML = '';
+            if (!showInput) toggleInputVisibility();
+        }
+
+        function toggleInputVisibility() {
+            showInput = !showInput;
+            inputContainer.classList.toggle('hidden', !showInput);
+        }
+
+        inputText.addEventListener('input', () => {
+            words = []; wordIndex = 0; totalElapsedMs = 0;
+            updateStats();
+        });
+
+        updateStats();
+    </script>
+</body>
+</html>
