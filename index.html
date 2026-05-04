@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FastReader v0.3.6</title>
+    <title>FastReader v0.8.0</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
@@ -18,13 +18,24 @@
         }
     </script>
     <style>
+        :root {
+            --focus-color: #2563eb;
+        }
+        .dark:root {
+            --focus-color: #ffffff;
+        }
+
         .reader-font { font-family: 'Inter', sans-serif; }
         
-        .bionic-bold { font-weight: 800; color: #000; transition: color 0.2s; }
-        .bionic-thin { font-weight: 400; color: #4b5563; transition: color 0.2s; }
+        /* Klassen für die Fixations-Hervorhebung */
+        .focus-bold { 
+            font-weight: 800; 
+            color: var(--focus-color); 
+            transition: color 0.2s; 
+        }
+        .focus-thin { font-weight: 400; color: #4b5563; transition: color 0.2s; }
 
-        .dark .bionic-bold { color: #ffffff; }
-        .dark .bionic-thin { color: #9ca3af; }
+        .dark .focus-thin { color: #9ca3af; }
 
         input[type=range] {
             height: 6px;
@@ -44,6 +55,23 @@
             background: #2563eb;
             cursor: pointer;
         }
+
+        /* Styling für den Color-Picker */
+        input[type=color] {
+            -webkit-appearance: none;
+            border: none;
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            cursor: pointer;
+            background: none;
+        }
+        input[type=color]::-webkit-color-swatch-wrapper { padding: 0; }
+        input[type=color]::-webkit-color-swatch {
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+        }
+        .dark input[type=color]::-webkit-color-swatch { border-color: #374151; }
     </style>
     <script>
         // Initiale Theme-Logik vor dem Rendern
@@ -66,7 +94,7 @@
         <!-- Header -->
         <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-gray-50/50 dark:bg-gray-800/50">
             <div class="flex items-center gap-4">
-                <h1 class="text-xl font-bold">FastReader <span class="text-blue-600">v0.3.6</span></h1>
+                <h1 class="text-xl font-bold">FastReader <span class="text-blue-600">v0.8.0</span></h1>
                 <!-- Manueller Toggle-Button -->
                 <button onclick="toggleTheme()" class="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors" title="Farbschema wechseln">
                     <i data-lucide="sun" class="w-5 h-5 hidden dark:block"></i>
@@ -97,12 +125,13 @@
             <div id="inputContainer" class="mb-6 relative">
                 <div class="flex justify-between items-center mb-2">
                     <label class="text-sm font-semibold">Textinhalt</label>
+                    <!-- Zwischenablage-Button -->
                     <button id="pasteHint" onclick="pasteFromClipboard()" class="hidden text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium flex items-center gap-1">
                         <i data-lucide="clipboard" class="w-3 h-3"></i> Aus Zwischenablage einfügen?
                     </button>
                 </div>
                 <div class="relative">
-                    <textarea id="inputText" onfocus="checkEmptyFocus()" onblur="hidePasteHint()" class="w-full h-40 p-4 pr-10 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-gray-700 dark:text-gray-200 resize-none" placeholder="Füge deinen Text hier ein...">Bionic Reading ist eine neue Methode, die das Lesen erleichtert, indem sie die Fixationspunkte im Text künstlich hervorhebt. Dadurch wird das Auge durch den Text geführt und das Gehirn kann Wörter schneller erkennen. Probier es aus!</textarea>
+                    <textarea id="inputText" onfocus="checkEmptyFocus()" onblur="hidePasteHint()" class="w-full h-40 p-4 pr-10 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-gray-700 dark:text-gray-200 resize-none" placeholder="Füge deinen Text hier ein...">Die Fixations-Hervorhebung ist eine Lesemethode, die den Blickfluss optimiert, indem sie den Anfang von Wörtern optisch betont. Diese künstlichen Orientierungspunkte helfen dem Auge, schneller durch den Satz zu springen, während das Gehirn die Wortenden automatisch vervollständigt. Dies kann die Lesegeschwindigkeit erhöhen und die Konzentration fördern. Probier es aus!</textarea>
                     <button id="clearTextBtn" onclick="clearText()" class="absolute top-3 right-3 text-gray-400 hover:text-red-500 transition-colors p-1" title="Text löschen">
                         <i data-lucide="x-circle" class="w-6 h-6"></i>
                     </button>
@@ -110,17 +139,43 @@
             </div>
 
             <div class="flex flex-col gap-6">
-                <!-- Geschwindigkeit -->
-                <div class="flex flex-col gap-3">
-                    <div class="flex justify-between items-center">
-                        <span class="text-sm font-semibold">Geschwindigkeit</span>
-                        <span class="text-sm font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-3 py-1 rounded-full"><span id="wpmDisplay">350</span> WPM</span>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Geschwindigkeit mit Schritt-Buttons -->
+                    <div class="flex flex-col gap-2">
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs font-semibold uppercase tracking-wider text-gray-400">Tempo</span>
+                            <span class="text-xs font-bold text-blue-600 dark:text-blue-400"><span id="wpmDisplay">350</span> WPM</span>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <button onclick="changeSpeed(-25)" class="w-8 h-8 flex items-center justify-center bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 active:scale-95 transition-all text-gray-500 dark:text-gray-300">
+                                <i data-lucide="minus" class="w-4 h-4"></i>
+                            </button>
+                            <input type="range" id="speedRange" min="100" max="1000" value="350" step="5" class="cursor-pointer">
+                            <button onclick="changeSpeed(25)" class="w-8 h-8 flex items-center justify-center bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 active:scale-95 transition-all text-gray-500 dark:text-gray-300">
+                                <i data-lucide="plus" class="w-4 h-4"></i>
+                            </button>
+                        </div>
                     </div>
-                    <div class="flex items-center gap-4">
-                        <button onclick="changeSpeed(-25)" class="w-10 h-10 flex items-center justify-center bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 active:scale-95 transition-all"><i data-lucide="minus" class="w-4 h-4"></i></button>
-                        <input type="range" id="speedRange" min="100" max="1000" value="350" step="5" class="cursor-pointer">
-                        <button onclick="changeSpeed(25)" class="w-10 h-10 flex items-center justify-center bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 active:scale-95 transition-all"><i data-lucide="plus" class="w-4 h-4"></i></button>
+
+                    <!-- Farbe -->
+                    <div class="flex flex-col gap-2">
+                        <span class="text-xs font-semibold uppercase tracking-wider text-gray-400">Farbe der Hervorhebung</span>
+                        <div class="flex items-center gap-3">
+                            <input type="color" id="colorPicker" value="#2563eb" class="cursor-pointer">
+                            <span id="colorHex" class="text-xs font-mono text-gray-500 uppercase">#2563eb</span>
+                        </div>
                     </div>
+                </div>
+
+                <!-- Settings Aktionen -->
+                <div class="flex justify-end gap-4 border-t border-gray-100 dark:border-gray-700 pt-4">
+                    <button id="undoBtn" onclick="undoSettings()" class="flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-blue-600 transition-colors disabled:opacity-30 disabled:cursor-not-allowed" disabled title="Letzte Änderung rückgängig machen">
+                        <i data-lucide="undo-2" class="w-3.5 h-3.5"></i> Rückgängig
+                    </button>
+                    <button onclick="resetSettings()" class="flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-red-600 transition-colors" title="Einstellungen auf Standard zurücksetzen">
+                        <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Standard-Werte
+                    </button>
                 </div>
 
                 <!-- Steuerungs-Buttons -->
@@ -142,9 +197,9 @@
         <!-- Footer Info -->
         <div class="px-6 py-3 bg-gray-100 dark:bg-gray-900/50 text-[10px] text-gray-400 flex justify-between items-center transition-colors">
             <span>FastReader RSVP Engine</span>
-            <a href="https://de.wikipedia.org/wiki/Bionic_Reading" target="_blank" class="hover:text-blue-500 transition-colors flex items-center gap-1">
-                Über die Technik <i data-lucide="external-link" class="w-3 h-3"></i>
-            </a>
+            <span class="flex items-center gap-1">
+                Optimierte Fixationspunkte zur visuellen Führung
+            </span>
         </div>
     </div>
 
@@ -159,6 +214,9 @@
         let sessionStartTime = null;
         let totalElapsedMs = 0;
 
+        // History Management
+        let previousSettingsSnapshot = null;
+
         const readerDisplay = document.getElementById('readerDisplay');
         const displayArea = document.getElementById('displayArea');
         const progressContainer = document.getElementById('progressContainer');
@@ -166,6 +224,9 @@
         const playBtnIcon = document.getElementById('playBtnIcon');
         const speedRange = document.getElementById('speedRange');
         const wpmDisplay = document.getElementById('wpmDisplay');
+        const colorPicker = document.getElementById('colorPicker');
+        const colorHex = document.getElementById('colorHex');
+        const undoBtn = document.getElementById('undoBtn');
         const progressBar = document.getElementById('progressBar');
         const wordStats = document.getElementById('wordStats');
         const timeStats = document.getElementById('timeStats');
@@ -177,14 +238,97 @@
         // Initialisierung Lucide
         lucide.createIcons();
 
+        // Aktuelle Einstellungen als Objekt holen
+        function getCurrentSettings() {
+            return {
+                wpm: speedRange.value,
+                color: colorPicker.value
+            };
+        }
+
+        // Einstellungen und URL-Parameter laden (v0.8.0 Update)
+        function loadSettings() {
+            // 1. Zuerst gespeicherte Einstellungen laden
+            const settings = JSON.parse(localStorage.getItem('fastreader_settings')) || {};
+            if (settings.wpm) {
+                speedRange.value = settings.wpm;
+                updateWPMDisplay(); 
+            }
+            if (settings.color) {
+                colorPicker.value = settings.color;
+                updateColor(settings.color, false);
+            }
+
+            // 2. URL-Parameter prüfen (Höhere Priorität für den Textinhalt)
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlText = urlParams.get('text');
+            if (urlText) {
+                inputText.value = decodeURIComponent(urlText);
+                updateStats();
+                toggleClearBtn();
+            }
+        }
+
+        // Einstellungen speichern
+        function saveSettings(trackHistory = true) {
+            const current = getCurrentSettings();
+            if (trackHistory) {
+                const lastSaved = JSON.parse(localStorage.getItem('fastreader_settings')) || {};
+                if (JSON.stringify(lastSaved) !== JSON.stringify(current)) {
+                    previousSettingsSnapshot = lastSaved;
+                    undoBtn.disabled = false;
+                }
+            }
+            localStorage.setItem('fastreader_settings', JSON.stringify(current));
+        }
+
+        // Feature: Undo Settings
+        function undoSettings() {
+            if (!previousSettingsSnapshot) return;
+            const toRestore = previousSettingsSnapshot;
+            previousSettingsSnapshot = getCurrentSettings(); 
+            speedRange.value = toRestore.wpm || 350;
+            colorPicker.value = toRestore.color || '#2563eb';
+            updateWPMDisplay();
+            updateColor(colorPicker.value, true);
+            saveSettings(false); 
+        }
+
+        // Feature: Reset Settings
+        function resetSettings() {
+            previousSettingsSnapshot = getCurrentSettings();
+            undoBtn.disabled = false;
+            speedRange.value = 350;
+            colorPicker.value = '#2563eb';
+            updateWPMDisplay();
+            updateColor('#2563eb', true);
+            saveSettings(false);
+        }
+
         function toggleTheme() {
             const isDark = document.documentElement.classList.toggle('dark');
             localStorage.setItem('theme', isDark ? 'dark' : 'light');
-            // Lucide Icons neu rendern, damit Sun/Moon korrekt getauscht werden
             lucide.createIcons();
         }
 
-        speedRange.addEventListener('input', () => updateWPMDisplay());
+        // Event Listener für Slider
+        speedRange.addEventListener('mousedown', () => {
+            previousSettingsSnapshot = getCurrentSettings();
+            undoBtn.disabled = false;
+        });
+        speedRange.addEventListener('input', () => {
+            updateWPMDisplay();
+            saveSettings(false);
+        });
+
+        colorPicker.addEventListener('focus', () => {
+            previousSettingsSnapshot = getCurrentSettings();
+            undoBtn.disabled = false;
+        });
+        colorPicker.addEventListener('input', (e) => {
+            updateColor(e.target.value);
+            saveSettings(false);
+        });
 
         window.addEventListener('keydown', (e) => {
             if (e.code === 'Space' && document.activeElement !== inputText) {
@@ -193,6 +337,15 @@
             }
         });
 
+        function updateColor(hex, refreshCurrent = true) {
+            colorHex.innerText = hex;
+            document.documentElement.style.setProperty('--focus-color', hex);
+            if (refreshCurrent && isPlaying && words.length > 0) {
+                const currentWord = words[Math.max(0, wordIndex - 1)];
+                readerDisplay.innerHTML = formatWord(currentWord);
+            }
+        }
+
         function updateWPMDisplay() {
             wpmDisplay.innerText = speedRange.value;
             updateStats();
@@ -200,16 +353,20 @@
         }
 
         function changeSpeed(delta) {
+            previousSettingsSnapshot = getCurrentSettings();
+            undoBtn.disabled = false;
             let newVal = parseInt(speedRange.value) + delta;
-            newVal = Math.max(speedRange.min, Math.min(speedRange.max, newVal));
+            newVal = Math.max(parseInt(speedRange.min), Math.min(parseInt(speedRange.max), newVal));
             speedRange.value = newVal;
             updateWPMDisplay();
+            saveSettings(false);
         }
 
         function clearText() {
             inputText.value = '';
             resetReader();
             updateStats();
+            pasteHint.classList.remove('hidden');
         }
 
         function toggleClearBtn() {
@@ -247,7 +404,7 @@
             const cleanWord = word.trim();
             const len = cleanWord.length;
             let highLen = len === 1 ? 1 : (len <= 3 ? 1 : (len <= 5 ? 2 : Math.ceil(len * 0.4)));
-            return `<span class="bionic-bold">${cleanWord.substring(0, highLen)}</span><span class="bionic-thin">${cleanWord.substring(highLen)}</span>`;
+            return `<span class="focus-bold">${cleanWord.substring(0, highLen)}</span><span class="focus-thin">${cleanWord.substring(highLen)}</span>`;
         }
 
         function calculateDelay(word) {
@@ -375,7 +532,16 @@
             updateStats();
         });
 
-        updateStats();
+        // Initialisierung
+        loadSettings();
     </script>
 </body>
 </html>
+
+<!-- 
+CHANGE LOG v0.8.0:
+- Feature: Unterstützung für URL-Parameter hinzugefügt. Texte können nun via ?text=... direkt an die App übergeben werden.
+- Integration: Automatisches Decodieren und Laden des URL-Inhalts während der Initialisierungsphase.
+- UX: Sofortige Berechnung der Statistiken für via URL geladene Texte.
+- Consistency: Beibehaltung aller v0.7.0 Features (Schritt-Buttons, Undo, Reset).
+-->
