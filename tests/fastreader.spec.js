@@ -1,8 +1,10 @@
 const { test, expect } = require('@playwright/test');
 const path = require('path');
 
-const fileUrl = `file://${path.resolve(__dirname, '../index_v0_8_0.html')}`;
+const fileUrl = `file://${path.resolve(__dirname, '../index.html')}`;
 
+// ODER falls du die Version im Namen behältst:
+const fileUrl = `file://${path.resolve(__dirname, '../index_v0_8_1.html')}`;
 test.describe('FastReader Basis-Tests', () => {
   
   test('Sollte die Anwendung korrekt laden', async ({ page }) => {
